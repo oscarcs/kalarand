@@ -1,0 +1,4 @@
+.assetpack
+node_modules
+.DS_Store
+/src/manifest.json
