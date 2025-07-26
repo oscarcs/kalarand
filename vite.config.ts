@@ -1,10 +1,10 @@
 import { defineConfig } from "vite";
 
-import { assetpackPlugin } from "./scripts/assetpack-vite-plugin";
+import { assetsPlugin } from "./scripts/vite-plugin-assets";
 
 // https://vite.dev/config/
 export default defineConfig({
-    plugins: [assetpackPlugin()],
+    plugins: [assetsPlugin()],
     server: {
         port: 8080,
         open: true,
