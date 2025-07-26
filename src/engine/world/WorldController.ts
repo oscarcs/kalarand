@@ -31,7 +31,6 @@ export class WorldController extends Container {
     public async initialize(): Promise<void> {
         if (this.isInitialized) return;
 
-        // Load the empty tile texture
         const texture = await Assets.load("empty.png");
         await this.renderer.initialize(texture);
         
@@ -94,6 +93,15 @@ export class WorldController extends Container {
             this.camera.move(movement.worldX * this.camera.speed, movement.worldY * this.camera.speed);
         }
 
+        // Handle zoom input
+        const zoomInput = this.inputController.getZoomInput();
+        if (zoomInput.zoomIn) {
+            this.camera.zoomIn();
+        }
+        if (zoomInput.zoomOut) {
+            this.camera.zoomOut();
+        }
+
         // Update camera position
         this.camera.update();
         this.updateCameraPosition();
@@ -106,6 +114,9 @@ export class WorldController extends Container {
         const screenPos = this.camera.getScreenPosition();
         this.renderer.x = screenPos.x;
         this.renderer.y = screenPos.y;
+        
+        // Apply zoom scaling for crisp pixels
+        this.renderer.scale.set(this.camera.zoom);
     }
 
     /**

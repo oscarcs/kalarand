@@ -66,6 +66,11 @@ export class IsometricRenderer extends Container {
 
         this.tileTextures = [];
         
+        // Ensure the base texture uses nearest neighbor filtering for crisp pixels
+        if (this.baseTexture.source) {
+            this.baseTexture.source.scaleMode = 'nearest';
+        }
+        
         for (let i = 0; i < 4; i++) {
             const uvs = getTileUVs(i);
             const frame = new Rectangle(uvs.x, uvs.y, uvs.width, uvs.height);

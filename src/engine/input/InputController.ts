@@ -6,6 +6,8 @@ import { screenToWorldMovement } from "../world/IsometricUtils";
 export class InputController {
     private keys: Set<string> = new Set();
     private listeners: Map<string, (() => void)[]> = new Map();
+    private lastZoomTime: number = 0;
+    private zoomCooldown: number = 150; // ms between zoom actions
 
     constructor() {
         this.setupEventListeners();
@@ -67,6 +69,30 @@ export class InputController {
         }
 
         return { x, y };
+    }
+
+    /**
+     * Get zoom input with cooldown to prevent rapid zooming
+     */
+    public getZoomInput(): { zoomIn: boolean; zoomOut: boolean } {
+        const now = Date.now();
+        const canZoom = now - this.lastZoomTime > this.zoomCooldown;
+        
+        let zoomIn = false;
+        let zoomOut = false;
+        
+        if (canZoom) {
+            if (this.isKeyPressed('Equal')) { // = key
+                zoomIn = true;
+                this.lastZoomTime = now;
+            }
+            else if (this.isKeyPressed('Minus')) { // - key
+                zoomOut = true;
+                this.lastZoomTime = now;
+            }
+        }
+        
+        return { zoomIn, zoomOut };
     }
 
     /**

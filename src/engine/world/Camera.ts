@@ -12,10 +12,17 @@ export class Camera {
     /** Camera movement speed in world units per frame */
     public speed: number = 0.2;
     
+    /** Zoom level (1x = normal, 2x = zoomed in 2x, etc.) */
+    public zoom: number = 2.0;
+    public minZoom: number = 1.0;
+    public maxZoom: number = 4.0;
+    public zoomSpeed: number = 1.0; // Changed to 1.0 for integer steps
+    
     /** Smooth movement settings */
     public smoothing: number = 0.15;
     private targetX: number = 0;
     private targetY: number = 0;
+    private targetZoom: number = 2.0;
     
     /** World bounds */
     private minX: number = 0;
@@ -32,6 +39,7 @@ export class Camera {
         this.worldY = worldHeight / 2;
         this.targetX = this.worldX;
         this.targetY = this.worldY;
+        this.targetZoom = this.zoom;
     }
 
     /**
@@ -50,14 +58,38 @@ export class Camera {
     }
 
     /**
+     * Set zoom level (rounded to nearest integer)
+     */
+    public setZoom(zoom: number): void {
+        const integerZoom = Math.round(zoom);
+        this.targetZoom = Math.max(this.minZoom, Math.min(this.maxZoom, integerZoom));
+    }
+
+    /**
+     * Zoom in by one integer level
+     */
+    public zoomIn(): void {
+        this.setZoom(this.targetZoom + 1);
+    }
+
+    /**
+     * Zoom out by one integer level
+     */
+    public zoomOut(): void {
+        this.setZoom(this.targetZoom - 1);
+    }
+
+    /**
      * Update camera position with smooth interpolation
      */
     public update(): void {
         const dx = this.targetX - this.worldX;
         const dy = this.targetY - this.worldY;
+        const dz = this.targetZoom - this.zoom;
         
         this.worldX += dx * this.smoothing;
         this.worldY += dy * this.smoothing;
+        this.zoom += dz * this.smoothing;
     }
 
     /**
@@ -65,7 +97,7 @@ export class Camera {
      */
     public getScreenPosition(): Coordinate {
         const isoPos = worldToIso(this.worldX, this.worldY);
-        return { x: -isoPos.x, y: -isoPos.y };
+        return { x: -isoPos.x * this.zoom, y: -isoPos.y * this.zoom };
     }
 
     /**
@@ -74,6 +106,7 @@ export class Camera {
     public snapToTarget(): void {
         this.worldX = this.targetX;
         this.worldY = this.targetY;
+        this.zoom = this.targetZoom;
     }
 
     /**
