@@ -8,29 +8,49 @@ export class InputController {
     private listeners: Map<string, (() => void)[]> = new Map();
     private lastZoomTime: number = 0;
     private zoomCooldown: number = 150; // ms between zoom actions
+    private wheelZoomQueue: number = 0; // Queue for wheel zoom events
+
+    // Store bound event listeners for proper cleanup
+    private keydownHandler: (event: KeyboardEvent) => void;
+    private keyupHandler: (event: KeyboardEvent) => void;
+    private wheelHandler: (event: WheelEvent) => void;
+    private blurHandler: () => void;
 
     constructor() {
+        // Bind event handlers
+        this.keydownHandler = (event) => {
+            this.keys.add(event.code);
+            this.triggerKeyListeners(event.code, 'down');
+        };
+
+        this.keyupHandler = (event) => {
+            this.keys.delete(event.code);
+            this.triggerKeyListeners(event.code, 'up');
+        };
+
+        this.wheelHandler = (event) => {
+            event.preventDefault();
+            
+            // Normalize wheel delta across different browsers and devices
+            const delta = Math.sign(event.deltaY);
+            this.wheelZoomQueue += delta;
+        };
+
+        this.blurHandler = () => {
+            this.keys.clear();
+        };
+
         this.setupEventListeners();
     }
 
     /**
-     * Set up keyboard event listeners
+     * Set up keyboard and mouse event listeners
      */
     private setupEventListeners(): void {
-        document.addEventListener('keydown', (event) => {
-            this.keys.add(event.code);
-            this.triggerKeyListeners(event.code, 'down');
-        });
-
-        document.addEventListener('keyup', (event) => {
-            this.keys.delete(event.code);
-            this.triggerKeyListeners(event.code, 'up');
-        });
-
-        // Handle window focus/blur to clear keys
-        window.addEventListener('blur', () => {
-            this.keys.clear();
-        });
+        document.addEventListener('keydown', this.keydownHandler);
+        document.addEventListener('keyup', this.keyupHandler);
+        document.addEventListener('wheel', this.wheelHandler, { passive: false });
+        window.addEventListener('blur', this.blurHandler);
     }
 
     /**
@@ -82,12 +102,24 @@ export class InputController {
         let zoomOut = false;
         
         if (canZoom) {
-            if (this.isKeyPressed('Equal')) { // = key
+            // Handle keyboard zoom
+            if (this.isKeyPressed('Equal')) {
                 zoomIn = true;
                 this.lastZoomTime = now;
             }
-            else if (this.isKeyPressed('Minus')) { // - key
+            else if (this.isKeyPressed('Minus')) {
                 zoomOut = true;
+                this.lastZoomTime = now;
+            }
+            // Handle mouse wheel zoom
+            else if (this.wheelZoomQueue !== 0) {
+                if (this.wheelZoomQueue > 0) {
+                    zoomOut = true; // Wheel up = zoom out
+                }
+                else {
+                    zoomIn = true; // Wheel down = zoom in
+                }
+                this.wheelZoomQueue = 0; // Clear the queue
                 this.lastZoomTime = now;
             }
         }
@@ -146,10 +178,12 @@ export class InputController {
      * Clean up event listeners
      */
     public destroy(): void {
-        document.removeEventListener('keydown', this.setupEventListeners);
-        document.removeEventListener('keyup', this.setupEventListeners);
-        window.removeEventListener('blur', this.setupEventListeners);
+        document.removeEventListener('keydown', this.keydownHandler);
+        document.removeEventListener('keyup', this.keyupHandler);
+        document.removeEventListener('wheel', this.wheelHandler);
+        window.removeEventListener('blur', this.blurHandler);
         this.keys.clear();
         this.listeners.clear();
+        this.wheelZoomQueue = 0;
     }
 }
