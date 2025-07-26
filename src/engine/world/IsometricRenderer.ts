@@ -9,12 +9,14 @@ export class TileSprite extends Sprite {
     public worldX: number;
     public worldY: number;
     public tile: Tile;
+    public northCornerHeight: number;
 
-    constructor(texture: Texture, tile: Tile) {
+    constructor(texture: Texture, tile: Tile, northHeight: number) {
         super(texture);
         this.tile = tile;
         this.worldX = tile.x;
         this.worldY = tile.y;
+        this.northCornerHeight = northHeight;
         
         this.anchor.set(0.5, 1); // Anchor at bottom center for isometric tiles
         this.updatePosition();
@@ -26,14 +28,11 @@ export class TileSprite extends Sprite {
     public updatePosition(): void {
         const isoPos = worldToIso(this.worldX, this.worldY);
         
-        // Calculate average height of the tile for positioning
-        const avgHeight = this.tile.corners.reduce((sum, corner) => sum + corner.height, 0) / 4;
-        
         this.x = isoPos.x;
-        this.y = isoPos.y - (avgHeight * TILE_DEPTH);
+        this.y = isoPos.y - (this.northCornerHeight * TILE_DEPTH);
         
         // Set z-index for proper depth sorting
-        this.zIndex = calculateDepth(this.worldX, this.worldY, avgHeight);
+        this.zIndex = calculateDepth(this.worldX, this.worldY, this.northCornerHeight);
     }
 }
 
@@ -85,7 +84,7 @@ export class IsometricRenderer extends Container {
     /**
      * Render a single tile
      */
-    public renderTile(tile: Tile): void {
+    public renderTile(tile: Tile, northCornerHeight: number): void {
         const key = `${tile.x},${tile.y}`;
         
         // Remove existing sprite if it exists
@@ -95,7 +94,7 @@ export class IsometricRenderer extends Container {
         const texture = this.tileTextures[tile.type];
         if (!texture) return;
         
-        const sprite = new TileSprite(texture, tile);
+        const sprite = new TileSprite(texture, tile, northCornerHeight);
         this.tileSprites.set(key, sprite);
         this.addChild(sprite);
     }

@@ -61,7 +61,7 @@ export class WorldController extends Container {
      */
     private renderWorld(): void {
         for (const tile of this.worldData.tiles.values()) {
-            this.renderer.renderTile(tile);
+            this.renderer.renderTile(tile, tile.northCornerHeight || 0);
         }
     }
 
