@@ -1,4 +1,5 @@
-import { screenToWorldMovement } from "../world/IsometricUtils";
+import { engine } from "../../app/getEngine";
+import { Coordinate, screenToWorldMovement } from "../world/IsometricUtils";
 
 /**
  * Input controller for handling keyboard input
@@ -10,11 +11,17 @@ export class InputController {
     private zoomCooldown: number = 150; // ms between zoom actions
     private wheelZoomQueue: number = 0; // Queue for wheel zoom events
 
+    // Mouse tracking
+    private mouseX: number = 0;
+    private mouseY: number = 0;
+    private canvas: HTMLCanvasElement;
+
     // Store bound event listeners for proper cleanup
     private keydownHandler: (event: KeyboardEvent) => void;
     private keyupHandler: (event: KeyboardEvent) => void;
     private wheelHandler: (event: WheelEvent) => void;
     private blurHandler: () => void;
+    private mouseMoveHandler: (event: MouseEvent) => void;
 
     constructor() {
         // Bind event handlers
@@ -40,6 +47,13 @@ export class InputController {
             this.keys.clear();
         };
 
+        this.canvas = engine().canvas;
+        this.mouseMoveHandler = (event) => {
+            const rect = this.canvas.getBoundingClientRect();
+            this.mouseX = event.clientX + rect.left;
+            this.mouseY = event.clientY + rect.top;
+        };
+
         this.setupEventListeners();
     }
 
@@ -51,6 +65,7 @@ export class InputController {
         document.addEventListener('keyup', this.keyupHandler);
         document.addEventListener('wheel', this.wheelHandler, { passive: false });
         window.addEventListener('blur', this.blurHandler);
+        this.canvas.addEventListener('mousemove', this.mouseMoveHandler);
     }
 
     /**
@@ -139,6 +154,13 @@ export class InputController {
     }
 
     /**
+     * Get current mouse position relative to top left of canvas
+     */
+    public getMousePosition(): Coordinate {
+        return { x: this.mouseX, y: this.mouseY };
+    }
+
+    /**
      * Add a listener for a specific key event
      */
     public addKeyListener(keyCode: string, type: 'down' | 'up', callback: () => void): void {
@@ -182,6 +204,12 @@ export class InputController {
         document.removeEventListener('keyup', this.keyupHandler);
         document.removeEventListener('wheel', this.wheelHandler);
         window.removeEventListener('blur', this.blurHandler);
+        
+        // Clean up mouse listener
+        if (this.canvas) {
+            this.canvas.removeEventListener('mousemove', this.mouseMoveHandler);
+        }
+        
         this.keys.clear();
         this.listeners.clear();
         this.wheelZoomQueue = 0;

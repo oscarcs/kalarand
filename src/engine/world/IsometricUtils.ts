@@ -11,25 +11,27 @@ export interface Coordinate {
  */
 export const TILE_WIDTH = 32;
 export const TILE_HEIGHT = 16;
-export const TILE_DEPTH = 8; // Height unit in pixels
+export const TILE_WIDTH_HALF = TILE_WIDTH / 2;
+export const TILE_HEIGHT_HALF = TILE_HEIGHT / 2;
+export const TILE_DEPTH = TILE_HEIGHT_HALF;
 
 /**
- * Convert world coordinates to isometric screen coordinates
+ * Convert world coordinates to screen coordinates
  */
-export function worldToIso(worldX: number, worldY: number): Coordinate {
-    const isoX = (worldX - worldY) * (TILE_WIDTH / 2);
-    const isoY = (worldX + worldY) * (TILE_HEIGHT / 2);
-    
-    return { x: isoX, y: isoY };
+export function worldToScreen(world: Coordinate): Coordinate {
+    const screenX = (world.x - world.y) * TILE_WIDTH_HALF;
+    const screenY = (world.x + world.y) * TILE_HEIGHT_HALF;
+
+    return { x: screenX, y: screenY };
 }
 
 /**
- * Convert isometric screen coordinates to world coordinates
+ * Convert screen coordinates to world coordinates
  */
-export function isoToWorld(isoX: number, isoY: number): Coordinate {
-    const worldX = (isoX / (TILE_WIDTH / 2) + isoY / (TILE_HEIGHT / 2)) / 2;
-    const worldY = (isoY / (TILE_HEIGHT / 2) - isoX / (TILE_WIDTH / 2)) / 2;
-    
+export function screenToWorld(screen: Coordinate): Coordinate {
+    const worldX = (screen.x / TILE_WIDTH_HALF + screen.y / TILE_HEIGHT_HALF) / 2;
+    const worldY = (screen.y / TILE_HEIGHT_HALF - screen.x / TILE_WIDTH_HALF) / 2;
+
     return { x: worldX, y: worldY };
 }
 
@@ -37,10 +39,10 @@ export function isoToWorld(isoX: number, isoY: number): Coordinate {
  * Calculate the depth/z-index for proper rendering order in isometric view
  * Tiles further back and lower should render first
  */
-export function calculateDepth(worldX: number, worldY: number, height: number = 0): number {
+export function calculateDepth(world: Coordinate, height: number = 0): number {
     // Higher X and Y coordinates should render later (on top)
     // Higher height should also render later (on top)
-    return (worldX + worldY) * 1000 + height;
+    return (world.x + world.y) * 1000 + height;
 }
 
 /**

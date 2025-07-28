@@ -13,6 +13,7 @@ export class WorldController extends Container {
     private camera: Camera;
     private inputController: InputController;
     private isInitialized = false;
+    private lastHoveredTile: { x: number; y: number } | null = null;
 
     constructor(width: number = 100, height: number = 100) {
         super();
@@ -76,8 +77,8 @@ export class WorldController extends Container {
      * Center the view on a specific world coordinate
      */
     public centerOn(worldX: number, worldY: number): void {
-        this.camera.setTarget(worldX, worldY);
-        this.camera.snapToTarget();
+        this.camera.setNextTarget(worldX, worldY);
+        this.camera.snapToNextTarget();
         this.updateCameraPosition();
     }
 
@@ -105,6 +106,9 @@ export class WorldController extends Container {
         // Update camera position
         this.camera.update();
         this.updateCameraPosition();
+
+        // Handle mouse picking for tile hover
+        this.updateMousePicking();
     }
 
     /**
@@ -112,11 +116,39 @@ export class WorldController extends Container {
      */
     private updateCameraPosition(): void {
         const screenPos = this.camera.getScreenPosition();
+
         this.renderer.x = screenPos.x;
         this.renderer.y = screenPos.y;
-        
-        // Apply zoom scaling for crisp pixels
         this.renderer.scale.set(this.camera.zoom);
+    }
+
+    /**
+     * Handle mouse picking for tile hover effects
+     */
+    private updateMousePicking(): void {
+        const tileX = 0;
+        const tileY = 0;
+
+        // Check if this is a different tile than the last hovered one
+        if (!this.lastHoveredTile || 
+            this.lastHoveredTile.x !== tileX || 
+            this.lastHoveredTile.y !== tileY) {
+            
+            // Clear previous hover
+            if (this.lastHoveredTile) {
+                this.renderer.setTileHover(this.lastHoveredTile.x, this.lastHoveredTile.y, false);
+            }
+            
+            // Set new hover if tile exists
+            const tile = this.worldData.getTile(tileX, tileY);
+            if (tile) {
+                this.renderer.setTileHover(tileX, tileY, true);
+                this.lastHoveredTile = { x: tileX, y: tileY };
+            }
+            else {
+                this.lastHoveredTile = null;
+            }
+        }
     }
 
     /**
