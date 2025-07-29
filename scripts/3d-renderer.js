@@ -191,7 +191,7 @@ export class Renderer3D {
             }
             
             // Send the model data, texture, and angle to the browser and render
-            const dataUrl = await this.page.evaluate(async (base64Data, textureData, angle) => {
+            const renderResult = await this.page.evaluate(async (base64Data, textureData, angle) => {
                 // Convert base64 back to ArrayBuffer in the browser
                 const binaryString = atob(base64Data);
                 const arrayBuffer = new ArrayBuffer(binaryString.length);
@@ -203,8 +203,14 @@ export class Renderer3D {
                 return await window.threeRenderer.renderModel(arrayBuffer, textureData, angle);
             }, base64Data, textureData, angle);
             
+            // Extract image data and metadata
+            const imageData = renderResult.imageData || renderResult; // Fallback for old format
+            const footprint = renderResult.footprint || { x: 1, y: 1 };
+            const worldSize = renderResult.worldSize || { x: 1, y: 1 };
+            const renderDimensions = renderResult.renderDimensions || null;
+            
             // Convert data URL to buffer
-            const base64Result = dataUrl.replace(/^data:image\/png;base64,/, '');
+            const base64Result = imageData.replace(/^data:image\/png;base64,/, '');
             const buffer = Buffer.from(base64Result, 'base64');
             
             // Ensure output directory exists
@@ -213,7 +219,20 @@ export class Renderer3D {
             
             // Write PNG file
             await fs.promises.writeFile(outputPath, buffer);
-            console.log(`Rendered: ${outputPath}`);
+            
+            // Log render information including dimensions
+            if (renderDimensions) {
+                console.log(`Rendered: ${outputPath} (${footprint.x}x${footprint.y} tiles, ${renderDimensions.width}x${renderDimensions.height}px)`);
+            }
+            else {
+                console.log(`Rendered: ${outputPath} (${footprint.x}x${footprint.y} tiles)`);
+            }
+            
+            return { 
+                footprint, 
+                worldSize, 
+                renderDimensions
+            };
             
         }
         catch (error) {
@@ -230,6 +249,8 @@ export class Renderer3D {
         const modelName = path.basename(inputPath, '.glb');
         
         const results = [];
+        let modelFootprint = null;
+        let modelWorldSize = null;
         
         for (let i = 0; i < angles.length; i++) {
             const angle = angles[i];
@@ -237,12 +258,22 @@ export class Renderer3D {
             const outputPath = path.join(outputDir, `${modelName}_${angleName}.png`);
             
             try {
-                await this.renderModel(inputPath, outputPath, angle);
+                const renderResult = await this.renderModel(inputPath, outputPath, angle);
+                
+                // Store footprint info from first successful render
+                if (!modelFootprint && renderResult) {
+                    modelFootprint = renderResult.footprint;
+                    modelWorldSize = renderResult.worldSize;
+                }
+                
                 results.push({
                     angle,
                     angleName,
                     outputPath,
-                    success: true
+                    success: true,
+                    footprint: renderResult.footprint,
+                    worldSize: renderResult.worldSize,
+                    renderDimensions: renderResult.renderDimensions
                 });
             }
             catch (error) {
@@ -255,6 +286,32 @@ export class Renderer3D {
                     error: error.message
                 });
             }
+        }
+        
+        // Write consolidated metadata file for the model
+        if (modelFootprint) {
+            const modelMetadataPath = path.join(outputDir, `${modelName}_metadata.json`);
+            const firstSuccessfulResult = results.find(r => r.success);
+            
+            const modelMetadata = {
+                modelName,
+                baseFootprint: modelFootprint, // Base footprint (0° orientation)
+                worldSize: modelWorldSize,
+                renderDimensions: firstSuccessfulResult?.renderDimensions || null,
+                tileSize: {
+                    widthPx: 50,  // pixels per tile width
+                    heightPx: 25  // pixels per tile height
+                },
+                angles: results.filter(r => r.success).map(r => ({
+                    angle: r.angle,
+                    angleName: r.angleName,
+                    file: path.basename(r.outputPath),
+                    footprint: r.footprint, // Angle-adjusted footprint
+                    renderDimensions: r.renderDimensions
+                })),
+                renderDate: new Date().toISOString()
+            };
+            await fs.promises.writeFile(modelMetadataPath, JSON.stringify(modelMetadata, null, 2));
         }
         
         return results;

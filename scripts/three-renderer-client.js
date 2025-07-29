@@ -12,6 +12,10 @@ export class ThreeRenderer {
         this.width = width;
         this.height = height;
         
+        // Tile rendering constants
+        this.TILE_WIDTH_PX = 50;  // pixels per tile width
+        this.TILE_HEIGHT_PX = 25; // pixels per tile height
+        
         // Setup renderer
         this.renderer = new THREE.WebGLRenderer({ 
             canvas: this.canvas,
@@ -59,7 +63,43 @@ export class ThreeRenderer {
         this.camera.position.set(x, y, z);
         this.camera.lookAt(0, 0, 0);
     }
-    
+
+    // Calculate render dimensions based on footprint
+    calculateRenderDimensions(footprint) {
+        // Width must be EXACTLY footprint × tile width for perfect alignment
+        const width = footprint.x * this.TILE_WIDTH_PX;
+        
+        // Height can be arbitrary - we'll crop to fit the actual content
+        // Start with a reasonable estimate but allow for tall buildings
+        const minHeight = footprint.y * this.TILE_HEIGHT_PX;
+        const height = Math.max(minHeight, 200); // At least 200px height for tall buildings
+        
+        return {
+            width: width,
+            height: height,
+            centerOffsetX: 0,
+            centerOffsetY: 0
+        };
+    }
+
+    // Calculate proper camera zoom for pixel-perfect rendering
+    calculateCameraZoom(footprint, renderDims) {
+        // Set up camera to show exactly the footprint width
+        // The key insight: footprint.x world units should map to exactly renderDims.width pixels
+        const worldUnitsPerPixel = footprint.x / renderDims.width;
+        
+        const halfWidth = (renderDims.width * worldUnitsPerPixel) / 2;
+        const halfHeight = (renderDims.height * worldUnitsPerPixel) / 2;
+        
+        this.camera.left = -halfWidth;
+        this.camera.right = halfWidth;
+        this.camera.top = halfHeight;
+        this.camera.bottom = -halfHeight;
+        this.camera.updateProjectionMatrix();
+        
+        return { halfWidth, halfHeight };
+    }
+
     setIsometricAngle(angle) {
         // Keep camera in fixed isometric position for consistent lighting
         const distance = 8;
@@ -108,21 +148,50 @@ export class ThreeRenderer {
         this.scene.add(fillLight);
     }
     
-    centerAndScaleModel(model) {
+    centerAndScaleModel(model, angle = 0) {
         // Calculate bounding box
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         
-        // Center the model
+        // Calculate tile footprint (1 world unit = 1 tile)
+        // Round to nearest tile, with a small tolerance for floating point precision
+        const tolerance = 0.1; // Small tolerance for floating point precision only
+        const tilesX = Math.max(1, Math.round(size.x));
+        const tilesY = Math.max(1, Math.round(size.z)); // Z is depth in our coordinate system
+        
+        // Store footprint metadata on the model (base orientation)
+        model.userData.baseFootprint = { x: tilesX, y: tilesY };
+        model.userData.worldSize = { x: size.x, y: size.z };
+        
+        console.log(`Model footprint: ${tilesX}x${tilesY} tiles (world size: ${size.x.toFixed(2)}x${size.z.toFixed(2)})`);
+        
+        // Get current footprint for this angle
+        const currentFootprint = this.getFootprintForAngle(angle);
+        
+        // Simple centering - put model at origin
         model.position.sub(center);
         
-        // Scale to fit in camera view
-        const maxDim = Math.max(size.x, size.y, size.z);
-        const scale = 4 / maxDim;
-        model.scale.setScalar(scale);
+        // Position the model so its base sits on the ground (Y=0)
+        const minY = box.min.y;
+        model.position.y -= minY;
         
-        return model;
+        return { 
+            footprint: currentFootprint,
+            worldSize: { x: size.x, y: size.z }
+        };
+    }
+    
+    getFootprintForAngle(angle) {
+        if (!this.loadedModel || !this.loadedModel.userData.baseFootprint) {
+            return { x: 1, y: 1 };
+        }
+        
+        const base = this.loadedModel.userData.baseFootprint;
+        
+        // Keep the same footprint for all angles - the model rotation doesn't change its footprint
+        // The footprint represents the ground space it occupies, which should be consistent
+        return { x: base.x, y: base.y };
     }
     
     async loadModel(arrayBuffer) {
@@ -278,9 +347,8 @@ export class ThreeRenderer {
                 }
             });
             
-            // Center and scale the model
-            this.centerAndScaleModel(model);
-            this.scene.add(model);
+            // Center and scale the model, get footprint and pivot information
+            const modelInfo = this.centerAndScaleModel(model, angle);
             
             // Store reference to loaded model for rotation
             this.loadedModel = model;
@@ -288,17 +356,46 @@ export class ThreeRenderer {
             // Rotate model to desired angle (keeping camera and lighting fixed)
             this.rotateModelForAngle(angle);
             
+            // Calculate the actual footprint for this specific angle after rotation
+            const actualFootprint = this.getFootprintForAngle(angle);
+            
+            // Calculate optimal render dimensions for this angle's footprint
+            const renderDims = this.calculateRenderDimensions(actualFootprint);
+            
+            // Update renderer size for optimal rendering
+            this.renderer.setSize(renderDims.width, renderDims.height);
+            
+            // Update camera frustum for pixel-perfect tile alignment
+            this.calculateCameraZoom(actualFootprint, renderDims);
+            
+            this.scene.add(model);
+            
             // Set camera to fixed isometric position
             this.setIsometricAngle(angle);
             
             // Wait a moment for texture/material updates to be processed
             await new Promise(resolve => setTimeout(resolve, 100));
             
-            // Render the scene
+            // Render the scene with pixel-perfect dimensions
             this.renderer.render(this.scene, this.camera);
             
-            // Crop the canvas to remove transparent padding
-            return this.cropCanvas();
+            // Get final footprint metadata (angle-adjusted)
+            const footprint = actualFootprint;
+            const worldSize = this.loadedModel.userData.worldSize || { x: 1, y: 1 };
+            
+            // Use cropping to get clean image data without empty space
+            const imageData = this.cropCanvas();
+            
+            // Reset renderer size for next render
+            this.renderer.setSize(this.width, this.height);
+            
+            // Return both image and metadata
+            return {
+                imageData,
+                footprint,
+                worldSize,
+                renderDimensions: renderDims
+            };
             
         }
         catch (error) {
