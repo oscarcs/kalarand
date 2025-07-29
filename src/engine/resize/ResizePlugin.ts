@@ -38,7 +38,7 @@ export interface CreationResizePluginOptions extends ResizePluginOptions {
  * * Application#cancelResize
  * * Application#resizeOptions
  */
-export class CreationResizePlugin {
+export class BeachResizePlugin {
     /** @ignore */
     public static extension: ExtensionMetadata = ExtensionType.Application;
 
@@ -143,8 +143,8 @@ export class CreationResizePlugin {
         this._resizeId = null;
         this._resizeTo = null;
         app.resizeOptions = {
-            minWidth: 768,
-            minHeight: 1024,
+            minWidth: 0,
+            minHeight: 0,
             letterbox: true,
             ...options.resizeOptions,
         };

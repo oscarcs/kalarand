@@ -11,7 +11,7 @@ import { Navigation } from "./navigation";
  * Adds the following methods to Application:
  * * Application#navigation
  */
-export class CreationNavigationPlugin {
+export class BeachNavigationPlugin {
     /** @ignore */
     public static extension: ExtensionMetadata = ExtensionType.Application;
 

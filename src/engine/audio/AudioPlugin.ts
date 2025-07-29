@@ -14,7 +14,7 @@ import { BGM, SFX } from "./audio";
  * * Application#audio.getMasterVolume
  * * Application#audio.setMasterVolume
  */
-export class CreationAudioPlugin {
+export class BeachAudioPlugin {
     /** @ignore */
     public static extension: ExtensionMetadata = ExtensionType.Application;
 

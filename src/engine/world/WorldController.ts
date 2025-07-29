@@ -3,6 +3,7 @@ import { WorldData } from "./WorldData";
 import { IsometricRenderer } from "./IsometricRenderer";
 import { Camera } from "./Camera";
 import { InputController } from "../input/InputController";
+import { screenToWorld } from "./IsometricUtils";
 
 /**
  * Main controller for the isometric world
@@ -126,10 +127,20 @@ export class WorldController extends Container {
      * Handle mouse picking for tile hover effects
      */
     private updateMousePicking(): void {
-        const tileX = 0;
-        const tileY = 0;
+        const mousePos = this.inputController.getMousePositionRelativeToCenter();
 
-        // Check if this is a different tile than the last hovered one
+        const worldOffset = screenToWorld({
+            x: mousePos.x / this.camera.zoom,
+            y: mousePos.y / this.camera.zoom
+        });
+        
+        const worldMouseX = this.camera.target.x + worldOffset.x;
+        const worldMouseY = this.camera.target.y + worldOffset.y;
+        
+        const tileX = Math.ceil(worldMouseX);
+        const tileY = Math.ceil(worldMouseY);
+
+        // Update tile hover if mouse moved to a different tile
         if (!this.lastHoveredTile || 
             this.lastHoveredTile.x !== tileX || 
             this.lastHoveredTile.y !== tileY) {

@@ -11,15 +11,15 @@ import "pixi.js/app";
 // @ts-ignore - This is a dynamically generated file by AssetPack
 import manifest from "../manifest.json";
 
-import { CreationAudioPlugin } from "./audio/AudioPlugin";
-import { CreationNavigationPlugin } from "./navigation/NavigationPlugin";
-import { CreationResizePlugin } from "./resize/ResizePlugin";
+import { BeachAudioPlugin } from "./audio/AudioPlugin";
+import { BeachNavigationPlugin } from "./navigation/NavigationPlugin";
+import { BeachResizePlugin } from "./resize/ResizePlugin";
 import { getResolution } from "./utils/getResolution";
 
 extensions.remove(ResizePlugin);
-extensions.add(CreationResizePlugin);
-extensions.add(CreationAudioPlugin);
-extensions.add(CreationNavigationPlugin);
+extensions.add(BeachResizePlugin);
+extensions.add(BeachAudioPlugin);
+extensions.add(BeachNavigationPlugin);
 
 export class BeachEngine extends Application {
     /** Initialize the application */

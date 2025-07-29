@@ -1,3 +1,4 @@
+import { Renderer } from "pixi.js";
 import { engine } from "../../app/getEngine";
 import { Coordinate, screenToWorldMovement } from "../world/IsometricUtils";
 
@@ -15,6 +16,7 @@ export class InputController {
     private mouseX: number = 0;
     private mouseY: number = 0;
     private canvas: HTMLCanvasElement;
+    private renderer: Renderer;
 
     // Store bound event listeners for proper cleanup
     private keydownHandler: (event: KeyboardEvent) => void;
@@ -48,10 +50,16 @@ export class InputController {
         };
 
         this.canvas = engine().canvas;
+        this.renderer = engine().renderer;
+
+        const scaleX = this.renderer.width / this.canvas.offsetWidth;
+        const scaleY = this.renderer.height / this.canvas.offsetHeight;
+
         this.mouseMoveHandler = (event) => {
             const rect = this.canvas.getBoundingClientRect();
-            this.mouseX = event.clientX + rect.left;
-            this.mouseY = event.clientY + rect.top;
+            // TODO: Figure out how to calculate the correct offset based on canvas position
+            this.mouseX = (event.clientX - rect.left - 1) * scaleX;
+            this.mouseY = (event.clientY - rect.top - 1) * scaleY;
         };
 
         this.setupEventListeners();
@@ -158,6 +166,16 @@ export class InputController {
      */
     public getMousePosition(): Coordinate {
         return { x: this.mouseX, y: this.mouseY };
+    }
+
+    public getMousePositionRelativeToCenter(): Coordinate {
+        const viewportCenterX = this.renderer.width / 2;
+        const viewportCenterY = this.renderer.height / 2;
+
+        return {
+            x: this.mouseX - viewportCenterX,
+            y: this.mouseY - viewportCenterY
+        };
     }
 
     /**
