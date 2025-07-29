@@ -3,3 +3,5 @@ node_modules
 .DS_Store
 /src/manifest.json
 /public/assets
+/assets/3d
+/assets/2d

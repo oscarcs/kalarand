@@ -7,7 +7,8 @@
         "start": "npm run dev",
         "build": "npm run lint && tsc && vite build",
         "lint": "eslint .",
-        "dev": "vite"
+        "dev": "vite",
+        "test-3d": "node scripts/test-multi-angle.js"
     },
     "dependencies": {
         "@esotericsoftware/spine-pixi-v8": "^4.2.74",
@@ -19,10 +20,13 @@
     "devDependencies": {
         "@assetpack/core": "^1.4.0",
         "@eslint/js": "^9.21.0",
+        "@types/three": "^0.178.1",
         "eslint": "^9.21.0",
         "eslint-config-prettier": "^10.1.2",
         "eslint-plugin-prettier": "^5.2.6",
         "prettier": "^3.5.3",
+        "puppeteer": "^24.15.0",
+        "three": "^0.178.0",
         "typescript": "~5.7.3",
         "typescript-eslint": "^8.25.0",
         "vite": "^6.2.0"
