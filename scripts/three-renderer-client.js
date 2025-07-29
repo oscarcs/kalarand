@@ -43,15 +43,39 @@ export class ThreeRenderer {
             0.1, 100 // near, far
         );
         
-        // Position camera for isometric view (default angle)
-        this.camera.position.set(distance, distance, distance);
+        // Position camera for game isometric view (30-degree angle)
+        // For 30-degree dimetric projection, we calculate the proper camera position
+        // The angle between ground and camera should be 30 degrees
+        const angleRad = 30 * Math.PI / 180; // 30 degrees in radians
+        const horizontalDistance = distance * Math.cos(angleRad);
+        const verticalDistance = distance * Math.sin(angleRad);
+        
+        // Position camera at 45-degree azimuth angle for classic isometric look
+        const azimuthRad = 45 * Math.PI / 180;
+        const x = horizontalDistance * Math.cos(azimuthRad);
+        const z = horizontalDistance * Math.sin(azimuthRad);
+        const y = verticalDistance;
+        
+        this.camera.position.set(x, y, z);
         this.camera.lookAt(0, 0, 0);
     }
     
     setIsometricAngle(angle) {
         // Keep camera in fixed isometric position for consistent lighting
         const distance = 8;
-        this.camera.position.set(distance, distance, distance);
+        
+        // Position camera for game isometric view (30-degree angle)
+        const angleRad = 30 * Math.PI / 180; // 30 degrees in radians
+        const horizontalDistance = distance * Math.cos(angleRad);
+        const verticalDistance = distance * Math.sin(angleRad);
+        
+        // Position camera at 45-degree azimuth angle for classic isometric look
+        const azimuthRad = 45 * Math.PI / 180;
+        const x = horizontalDistance * Math.cos(azimuthRad);
+        const z = horizontalDistance * Math.sin(azimuthRad);
+        const y = verticalDistance;
+        
+        this.camera.position.set(x, y, z);
         this.camera.lookAt(0, 0, 0);
     }
     
