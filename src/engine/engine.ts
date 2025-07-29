@@ -14,12 +14,14 @@ import manifest from "../manifest.json";
 import { BeachAudioPlugin } from "./audio/AudioPlugin";
 import { BeachNavigationPlugin } from "./navigation/NavigationPlugin";
 import { BeachResizePlugin } from "./resize/ResizePlugin";
+import { BeachUIPlugin } from "./ui/UIPlugin";
 import { getResolution } from "./utils/getResolution";
 
 extensions.remove(ResizePlugin);
 extensions.add(BeachResizePlugin);
 extensions.add(BeachAudioPlugin);
 extensions.add(BeachNavigationPlugin);
+extensions.add(BeachUIPlugin);
 
 export class BeachEngine extends Application {
     /** Initialize the application */

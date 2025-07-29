@@ -4,6 +4,7 @@ import type {
     CreationResizePluginOptions,
     DeepRequired,
 } from "./engine/resize/ResizePlugin";
+import type { UIManager } from "./engine/ui/UIManager";
 
 declare global {
     namespace PixiMixins {
@@ -15,6 +16,7 @@ declare global {
                 setMasterVolume: (volume: number) => void;
             };
             navigation: Navigation;
+            ui: UIManager;
         }
         // eslint-disable-next-line @typescript-eslint/no-empty-object-type
         interface ApplicationOptions extends CreationResizePluginOptions { }
