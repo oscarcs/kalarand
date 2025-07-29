@@ -43,13 +43,12 @@ export class MainScreen extends Container {
         const toolbar = new UIToolbar({
             orientation: 'horizontal',
             position: { x: 20, y: 20 },
-            spacing: 8,
-            padding: 12,
+            spacing: 10,
+            padding: 10,
             uniformButtonSize: true,
-            backgroundColor: UIColors.gray[800],
-            borderColor: UIColors.gray[600],
-            borderWidth: 2,
-            cornerRadius: 8,
+            backgroundColor: UIColors.blue[800],
+            borderWidth: 0,
+            cornerRadius: 6,
             tools: [
                 {
                     id: 'inspector',
@@ -64,7 +63,7 @@ export class MainScreen extends Container {
                     name: 'Draw Road',
                     icon: '',
                     tooltip: 'Draw roads',
-                    variant: 'default',
+                    variant: 'primary',
                     onClick: () => this.activateDrawRoadTool()
                 },
                 {
@@ -72,7 +71,7 @@ export class MainScreen extends Container {
                     name: 'Raise Land',
                     icon: '',
                     tooltip: 'Raise terrain height',
-                    variant: 'success',
+                    variant: 'primary',
                     onClick: () => this.activateRaiseLandTool()
                 },
                 {
@@ -80,7 +79,7 @@ export class MainScreen extends Container {
                     name: 'Lower Land',
                     icon: '',
                     tooltip: 'Lower terrain height',
-                    variant: 'warning',
+                    variant: 'primary',
                     onClick: () => this.activateLowerLandTool()
                 }
             ]
@@ -90,135 +89,6 @@ export class MainScreen extends Container {
         
         app.ui.addComponent(toolbar);
         this.uiComponents.push(toolbar);
-        
-        const verticalToolbar = new UIToolbar({
-            orientation: 'vertical',
-            responsivePosition: {
-                anchor: 'top-right',
-                offset: { x: -20, y: 20 }
-            },
-            spacing: 6,
-            padding: 10,
-            uniformButtonSize: true,
-            backgroundColor: UIColors.blue[900],
-            borderColor: UIColors.blue[500],
-            borderWidth: 1,
-            cornerRadius: 12,
-            tools: [
-                {
-                    id: 'save',
-                    name: 'Save',
-                    icon: '',
-                    tooltip: 'Save project',
-                    variant: 'success',
-                    onClick: () => console.log('Save clicked')
-                },
-                {
-                    id: 'load',
-                    name: 'Load',
-                    icon: '',
-                    tooltip: 'Load project',
-                    variant: 'primary',
-                    onClick: () => console.log('Load clicked')
-                },
-                {
-                    id: 'delete',
-                    name: 'Delete',
-                    icon: '',
-                    tooltip: 'Delete selection',
-                    variant: 'danger',
-                    onClick: () => console.log('Delete clicked')
-                }
-            ]
-        });
-        
-        verticalToolbar.label = "Vertical Toolbar";
-        app.ui.addComponent(verticalToolbar);
-        this.uiComponents.push(verticalToolbar);
-        
-        const comparisonToolbar = new UIToolbar({
-            orientation: 'horizontal',
-            responsivePosition: {
-                anchor: 'bottom-left',
-                offset: { x: 20, y: -20 }
-            },
-            spacing: 8,
-            padding: 8,
-            uniformButtonSize: false,
-            backgroundColor: UIColors.green[800],
-            borderColor: UIColors.green[500],
-            borderWidth: 1,
-            cornerRadius: 6,
-            tools: [
-                {
-                    id: 'short',
-                    name: 'A',
-                    icon: '',
-                    onClick: () => console.log('Short button')
-                },
-                {
-                    id: 'medium',
-                    name: 'Medium Text',
-                    icon: '',
-                    onClick: () => console.log('Medium button')
-                },
-                {
-                    id: 'long',
-                    name: 'Very Long Button Text',
-                    icon: '',
-                    onClick: () => console.log('Long button')
-                }
-            ]
-        });
-        
-        comparisonToolbar.label = "Auto-sized Toolbar";
-        app.ui.addComponent(comparisonToolbar);
-        this.uiComponents.push(comparisonToolbar);
-        
-        const centerToolbar = new UIToolbar({
-            orientation: 'horizontal',
-            responsivePosition: {
-                anchor: 'center',
-                offset: { x: 0, y: 0 }
-            },
-            spacing: 12,
-            padding: 16,
-            uniformButtonSize: true,
-            backgroundColor: UIColors.purple[800],
-            borderColor: UIColors.purple[400],
-            borderWidth: 2,
-            cornerRadius: 10,
-            tools: [
-                {
-                    id: 'center-tool-1',
-                    name: 'Center 1',
-                    icon: '',
-                    tooltip: 'First center tool',
-                    variant: 'primary',
-                    onClick: () => console.log('Center tool 1 clicked')
-                },
-                {
-                    id: 'center-tool-2',
-                    name: 'Center 2',
-                    icon: '',
-                    tooltip: 'Second center tool',
-                    variant: 'success',
-                    onClick: () => console.log('Center tool 2 clicked')
-                },
-                {
-                    id: 'center-tool-3',
-                    name: 'Center 3',
-                    icon: '',
-                    tooltip: 'Third center tool',
-                    variant: 'warning',
-                    onClick: () => console.log('Center tool 3 clicked')
-                }
-            ]
-        });
-        
-        centerToolbar.label = "Center Toolbar";
-        app.ui.addComponent(centerToolbar);
-        this.uiComponents.push(centerToolbar);
         
         // Trigger initial resize to set responsive positions
         this.handleResize();

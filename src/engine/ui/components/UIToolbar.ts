@@ -46,6 +46,7 @@ export class UIToolbar extends UIContainer {
                 text: toolConfig.name || toolConfig.id,
                 icon: toolConfig.icon,
                 variant: toolConfig.variant || 'default',
+                cornerRadius: this.toolbarConfig.cornerRadius,
                 onClick: () => this.onToolClick(toolConfig),
                 interactive: true
             });
