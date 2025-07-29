@@ -1,6 +1,7 @@
 import type { Ticker } from "pixi.js";
 import { Container } from "pixi.js";
 import { WorldController } from "../../engine/world/WorldController";
+import { debug } from "../../engine/utils/Debug";
 
 export class MainScreen extends Container {
     public static assetBundles = ["default"];
@@ -15,26 +16,22 @@ export class MainScreen extends Container {
         this.mainContainer = new Container();
         this.addChild(this.mainContainer);
 
-        // Create the world controller for a 100x100 world
         this.worldController = new WorldController(100, 100);
         this.mainContainer.addChild(this.worldController);
     }
 
     public async prepare() {
-        // Initialize the world controller
         await this.worldController.initialize();
         
-        // Generate and render the random world
-        this.worldController.generateRandomWorld();
+        debug().initialize();
         
-        // Center the world view
+        this.worldController.generateRandomWorld();
         this.worldController.centerOn(50, 50);
     }
 
     public update(_time: Ticker) {
         if (this.paused) return;
         
-        // Update the world controller which handles camera and input
         this.worldController.update();
     }
 
@@ -76,6 +73,8 @@ export class MainScreen extends Container {
      * Clean up resources when screen is destroyed
      */
     public destroy(): void {
+        debug().destroy();
+        
         this.worldController.destroy();
         super.destroy();
     }

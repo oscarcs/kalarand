@@ -1,4 +1,4 @@
-import { Graphics, Container } from "pixi.js";
+import { Graphics, Container, Text } from "pixi.js";
 import { engine } from "../../app/getEngine";
 
 /**
@@ -8,12 +8,27 @@ export class Debug {
     private static instance: Debug | null = null;
     private container: Container;
     private crosshair: Graphics;
+    private fpsText: Text;
     private isInitialized = false;
 
     private constructor() {
         this.container = new Container();
         this.crosshair = new Graphics();
+        
+        // Create FPS text
+        this.fpsText = new Text({
+            text: '',
+            style: {
+                fontFamily: 'Arial',
+                fontSize: 16,
+                fill: 0xFFFFFF,
+                stroke: { color: 0x000000, width: 2 }
+            }
+        });
+        this.fpsText.position.set(10, 10);
+        
         this.container.addChild(this.crosshair);
+        this.container.addChild(this.fpsText);
     }
 
     /**
@@ -40,7 +55,31 @@ export class Debug {
             // Make sure debug overlay is always on top
             this.container.zIndex = 999999;
             app.stage.sortableChildren = true;
+            
+            // Start FPS display updates
+            this.startFPSTracking();
         }
+    }
+
+    /**
+     * Start FPS tracking by hooking into the app's ticker
+     */
+    private startFPSTracking(): void {
+        const app = engine();
+        if (!app || !app.ticker) return;
+        
+        app.ticker.add(this.updateFPS, this);
+    }
+
+    /**
+     * Update FPS counter
+     */
+    private updateFPS = (): void => {
+        const app = engine();
+        if (!app || !app.ticker) return;
+        
+        const fps = Math.round(app.ticker.FPS);
+        this.fpsText.text = `${fps} FPS`;
     }
 
     /**
@@ -128,6 +167,23 @@ export class Debug {
     }
 
     /**
+     * Toggle FPS counter visibility
+     */
+    public setFPSVisible(visible: boolean): void {
+        this.fpsText.visible = visible;
+    }
+
+    /**
+     * Get current FPS value from ticker
+     */
+    public getCurrentFPS(): number {
+        const app = engine();
+        if (!app || !app.ticker) return 0;
+        
+        return Math.round(app.ticker.FPS);
+    }
+
+    /**
      * Clean up debug system
      */
     public destroy(): void {
@@ -136,9 +192,15 @@ export class Debug {
             if (app && app.stage && this.container.parent) {
                 app.stage.removeChild(this.container);
             }
+            
+            // Remove FPS tracking
+            if (app && app.ticker) {
+                app.ticker.remove(this.updateFPS, this);
+            }
         }
         
         this.crosshair.destroy();
+        this.fpsText.destroy();
         this.container.destroy();
         this.isInitialized = false;
         Debug.instance = null;
