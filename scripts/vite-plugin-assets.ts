@@ -117,7 +117,8 @@ export function assetsPlugin() {
                     
                     if (entry.isDirectory()) {
                         await scanDirectory(fullPath, relativeFilePath);
-                    } else {
+                    }
+                    else {
                         files.push(relativeFilePath);
                     }
                 }

@@ -299,8 +299,8 @@ export class Renderer3D {
                 worldSize: modelWorldSize,
                 renderDimensions: firstSuccessfulResult?.renderDimensions || null,
                 tileSize: {
-                    widthPx: 50,  // pixels per tile width
-                    heightPx: 25  // pixels per tile height
+                    widthPx: 64,
+                    heightPx: 32
                 },
                 angles: results.filter(r => r.success).map(r => ({
                     angle: r.angle,

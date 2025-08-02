@@ -13,8 +13,8 @@ export class ThreeRenderer {
         this.height = height;
         
         // Tile rendering constants
-        this.TILE_WIDTH_PX = 50;  // pixels per tile width
-        this.TILE_HEIGHT_PX = 25; // pixels per tile height
+        this.TILE_WIDTH_PX = 64;  // pixels per tile width
+        this.TILE_HEIGHT_PX = 32; // pixels per tile height
         
         // Setup renderer
         this.renderer = new THREE.WebGLRenderer({ 
@@ -127,8 +127,6 @@ export class ThreeRenderer {
         // 45° intervals around Y-axis will give us the 4 diagonal corner views we want
         const rotationY = -angle * Math.PI / 180; // Negative for correct direction
         this.loadedModel.rotation.y = rotationY;
-        
-        console.log(`Rotating model to ${angle}° (${rotationY.toFixed(3)} radians) for isometric view`);
     }
     
     setupLighting() {
@@ -155,10 +153,9 @@ export class ThreeRenderer {
         const size = box.getSize(new THREE.Vector3());
         
         // Calculate tile footprint (1 world unit = 1 tile)
-        // Round to nearest tile, with a small tolerance for floating point precision
-        const tolerance = 0.1; // Small tolerance for floating point precision only
-        const tilesX = Math.max(1, Math.round(size.x));
-        const tilesY = Math.max(1, Math.round(size.z)); // Z is depth in our coordinate system
+        // Z is 'depth' in our coordinate system
+        const tilesX = Math.max(1, Math.ceil(size.x));
+        const tilesY = Math.max(1, Math.ceil(size.z));
         
         // Store footprint metadata on the model (base orientation)
         model.userData.baseFootprint = { x: tilesX, y: tilesY };
@@ -328,7 +325,8 @@ export class ThreeRenderer {
                                 
                                 if (Array.isArray(child.material)) {
                                     child.material[index] = newMaterial;
-                                } else {
+                                }
+                                else {
                                     child.material = newMaterial;
                                 }
                             }
