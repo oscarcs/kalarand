@@ -31,11 +31,14 @@ export function assetsPlugin() {
             config = resolvedConfig;
         },
         buildStart: async () => {
-            await processAssets();
+            if (mode === "build") {
+                await processAssets();
+            }
         },
-        configureServer(server) {
-            // Also process assets in dev mode
-            processAssets();
+        configureServer(_server) {
+            if (mode === "serve") {
+                processAssets();
+            }
         },
     } as Plugin;
 
@@ -173,7 +176,7 @@ export function assetsPlugin() {
             try {
                 await renderer.init();
 
-                const { allResults, metadata } = await renderer.renderMultipleModels(modelsToGenerate, assets2dDir);
+                const { metadata } = await renderer.renderMultipleModels(modelsToGenerate, assets2dDir);
                 
                 console.log(`Generated 2D assets for ${Object.keys(metadata).length} models`);
             }
