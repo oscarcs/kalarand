@@ -37,7 +37,7 @@ export function assetsPlugin() {
         },
         configureServer(_server) {
             if (mode === "serve") {
-                processAssets();
+                await processAssets();
             }
         },
     } as Plugin;
