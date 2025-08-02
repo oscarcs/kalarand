@@ -273,7 +273,11 @@ export class ThreeRenderer {
         return croppedCanvas.toDataURL('image/png');
     }
     
-    async renderModel(arrayBuffer, textureData, angle = 45) {
+    async renderModelAllAngles(arrayBuffer, textureData) {
+        const angles = [0, 90, 180, 270];
+        const angleNames = ['ne', 'nw', 'sw', 'se'];
+        const results = [];
+
         try {
             // Clear scene of any previous models
             const modelsToRemove = [];
@@ -284,7 +288,6 @@ export class ThreeRenderer {
             });
             modelsToRemove.forEach(model => this.scene.remove(model));
             
-            // Load texture if provided
             let texture = null;
             if (textureData) {
                 texture = await new Promise((resolve, reject) => {
@@ -303,11 +306,9 @@ export class ThreeRenderer {
                 texture.colorSpace = THREE.SRGBColorSpace;
             }
             
-            // Load and add new model
             const gltf = await this.loadModel(arrayBuffer);
             const model = gltf.scene;
             
-            // Apply texture and enhance materials for better visibility
             model.traverse((child) => {
                 if (child.isMesh && child.material) {
                     const materials = Array.isArray(child.material) ? child.material : [child.material];
@@ -322,7 +323,6 @@ export class ThreeRenderer {
                                 if (mat.isMeshStandardMaterial) {
                                     mat.roughness = 0.8;
                                     mat.metalness = 0.0;
-                                    // Reduce emission for more natural look
                                     mat.emissive.setHex(0x050505);
                                 }
                                 
@@ -359,59 +359,80 @@ export class ThreeRenderer {
                 }
             });
             
-            // Center and scale the model, get footprint and pivot information
-            const modelInfo = this.centerAndScaleModel(model, angle);
+            // Center and scale the model once (using first angle as reference)
+            const modelInfo = this.centerAndScaleModel(model, angles[0]);
             
             // Store reference to loaded model for rotation
             this.loadedModel = model;
-            
-            // Rotate model to desired angle (keeping camera and lighting fixed)
-            this.rotateModelForAngle(angle);
-            
-            // Calculate the actual footprint for this specific angle after rotation
-            const actualFootprint = this.getFootprintForAngle(angle);
-            
-            // Calculate optimal render dimensions for this angle's footprint
-            const renderDims = this.calculateRenderDimensions(actualFootprint);
-            
-            // Update renderer size for optimal rendering
-            this.renderer.setSize(renderDims.width, renderDims.height);
-            
-            // Update camera frustum for pixel-perfect tile alignment
-            this.calculateCameraZoom(actualFootprint, renderDims);
-            
             this.scene.add(model);
             
-            // Set camera to fixed isometric position
-            this.setIsometricAngle(angle);
-            
-            // Wait a moment for texture/material updates to be processed
+            // Wait a moment for material updates to be processed
             await new Promise(resolve => setTimeout(resolve, 100));
             
-            // Render the scene with pixel-perfect dimensions
-            this.renderer.render(this.scene, this.camera);
-            
-            // Get final footprint metadata (angle-adjusted)
-            const footprint = actualFootprint;
-            const worldSize = this.loadedModel.userData.worldSize || { x: 1, y: 1 };
-            
-            // Use cropping to get clean image data without empty space
-            const imageData = this.cropCanvas();
+            // Render all angles
+            for (let i = 0; i < angles.length; i++) {
+                const angle = angles[i];
+                const angleName = angleNames[i];
+                
+                try {
+                    // Rotate model to desired angle (keeping camera and lighting fixed)
+                    this.rotateModelForAngle(angle);
+                    
+                    // Calculate the actual footprint for this specific angle after rotation
+                    const actualFootprint = this.getFootprintForAngle(angle);
+                    
+                    // Calculate optimal render dimensions for this angle's footprint
+                    const renderDims = this.calculateRenderDimensions(actualFootprint);
+                    
+                    // Update renderer size for optimal rendering
+                    this.renderer.setSize(renderDims.width, renderDims.height);
+                    
+                    // Update camera frustum for pixel-perfect tile alignment
+                    this.calculateCameraZoom(actualFootprint, renderDims);
+                    
+                    // Set camera to fixed isometric position
+                    this.setIsometricAngle(angle);
+                    
+                    // Render the scene with pixel-perfect dimensions
+                    this.renderer.render(this.scene, this.camera);
+                    
+                    // Get final footprint metadata (angle-adjusted)
+                    const footprint = actualFootprint;
+                    const worldSize = this.loadedModel.userData.worldSize || { x: 1, y: 1 };
+                    
+                    // Use cropping to get clean image data without empty space
+                    const imageData = this.cropCanvas();
+                    
+                    results.push({
+                        angle,
+                        angleName,
+                        success: true,
+                        imageData,
+                        footprint,
+                        worldSize,
+                        renderDimensions: renderDims
+                    });
+                    
+                }
+                catch (error) {
+                    console.error(`Error rendering angle ${angle}:`, error);
+                    results.push({
+                        angle,
+                        angleName,
+                        success: false,
+                        error: error.message
+                    });
+                }
+            }
             
             // Reset renderer size for next render
             this.renderer.setSize(this.width, this.height);
             
-            // Return both image and metadata
-            return {
-                imageData,
-                footprint,
-                worldSize,
-                renderDimensions: renderDims
-            };
+            return results;
             
         }
         catch (error) {
-            console.error('Render error:', error);
+            console.error('Render all angles error:', error);
             throw error;
         }
     }

@@ -166,9 +166,12 @@ export class Renderer3D {
 </html>`;
     }
     
-    async renderModel(inputPath, outputPath, angle = 45) {
+    async renderAllAngles(inputPath, outputDir) {        
+        // Extract model name from input path
+        const modelName = path.basename(inputPath, '.glb');
+        
         try {
-            console.log(`Loading model: ${inputPath} (angle: ${angle}°)`);
+            console.log(`Loading model: ${inputPath}`);
             
             // Read the GLB file and convert to base64
             const glbBuffer = await fs.promises.readFile(inputPath);
@@ -190,8 +193,8 @@ export class Renderer3D {
                 // No textures found, proceed without
             }
             
-            // Send the model data, texture, and angle to the browser and render
-            const renderResult = await this.page.evaluate(async (base64Data, textureData, angle) => {
+            // Send the model data and texture to the browser and render all angles at once
+            const renderResults = await this.page.evaluate(async (base64Data, textureData) => {
                 // Convert base64 back to ArrayBuffer in the browser
                 const binaryString = atob(base64Data);
                 const arrayBuffer = new ArrayBuffer(binaryString.length);
@@ -200,122 +203,106 @@ export class Renderer3D {
                     uint8Array[i] = binaryString.charCodeAt(i);
                 }
                 
-                return await window.threeRenderer.renderModel(arrayBuffer, textureData, angle);
-            }, base64Data, textureData, angle);
+                return await window.threeRenderer.renderModelAllAngles(arrayBuffer, textureData);
+            }, base64Data, textureData);
             
-            // Extract image data and metadata
-            const imageData = renderResult.imageData || renderResult; // Fallback for old format
-            const footprint = renderResult.footprint || { x: 1, y: 1 };
-            const worldSize = renderResult.worldSize || { x: 1, y: 1 };
-            const renderDimensions = renderResult.renderDimensions || null;
+            // Process the results and save the images
+            const results = [];
             
-            // Convert data URL to buffer
-            const base64Result = imageData.replace(/^data:image\/png;base64,/, '');
-            const buffer = Buffer.from(base64Result, 'base64');
+            for (let i = 0; i < renderResults.length; i++) {
+                const renderResult = renderResults[i];
+                const angleName = renderResult.angleName;
+                const outputPath = path.join(outputDir, `${modelName}_${angleName}.png`);
+                
+                if (renderResult.success) {
+                    try {
+                        const base64Result = renderResult.imageData.replace(/^data:image\/png;base64,/, '');
+                        const buffer = Buffer.from(base64Result, 'base64');
+                        
+                        await fs.promises.mkdir(outputDir, { recursive: true });
+                        
+                        await fs.promises.writeFile(outputPath, buffer);
+                        
+                        if (renderResult.renderDimensions) {
+                            console.log(`Rendered: ${outputPath} (${renderResult.footprint.x}x${renderResult.footprint.y} tiles, ${renderResult.renderDimensions.width}x${renderResult.renderDimensions.height}px)`);
+                        }
+                        else {
+                            console.log(`Rendered: ${outputPath} (${renderResult.footprint.x}x${renderResult.footprint.y} tiles)`);
+                        }
+                        
+                        results.push({
+                            angle: renderResult.angle,
+                            angleName: renderResult.angleName,
+                            outputPath,
+                            success: true,
+                            footprint: renderResult.footprint,
+                            worldSize: renderResult.worldSize,
+                            renderDimensions: renderResult.renderDimensions
+                        });
+                    }
+                    catch (error) {
+                        console.error(`Failed to save image for angle ${renderResult.angle}° for ${modelName}:`, error);
+                        results.push({
+                            angle: renderResult.angle,
+                            angleName: renderResult.angleName,
+                            outputPath,
+                            success: false,
+                            error: error.message
+                        });
+                    }
+                }
+                else {
+                    console.error(`Failed to render angle ${renderResult.angle}° for ${modelName}:`, renderResult.error);
+                    results.push({
+                        angle: renderResult.angle,
+                        angleName: renderResult.angleName,
+                        outputPath,
+                        success: false,
+                        error: renderResult.error
+                    });
+                }
+            }
             
-            // Ensure output directory exists
-            const outputDir = path.dirname(outputPath);
-            await fs.promises.mkdir(outputDir, { recursive: true });
+            // Prepare metadata (in memory only - no disk writes)
+            const successfulResults = results.filter(r => r.success);
+            let modelMetadata = null;
             
-            // Write PNG file
-            await fs.promises.writeFile(outputPath, buffer);
+            console.log(`Metadata preparation: ${successfulResults.length} successful renders out of ${results.length} total`);
             
-            // Log render information including dimensions
-            if (renderDimensions) {
-                console.log(`Rendered: ${outputPath} (${footprint.x}x${footprint.y} tiles, ${renderDimensions.width}x${renderDimensions.height}px)`);
+            if (successfulResults.length > 0) {
+                // Use the first successful render for base metadata (typically 0° angle)
+                const baseResult = successfulResults.find(r => r.angle === 0) || successfulResults[0];
+                
+                modelMetadata = {
+                    modelName,
+                    baseFootprint: baseResult.footprint, // Base footprint from reference angle
+                    worldSize: baseResult.worldSize,
+                    renderDimensions: baseResult.renderDimensions,
+                    angles: successfulResults.map(r => ({
+                        angle: r.angle,
+                        angleName: r.angleName,
+                        file: path.basename(r.outputPath),
+                        footprint: r.footprint, // Angle-adjusted footprint
+                        renderDimensions: r.renderDimensions
+                    })),
+                    renderDate: new Date().toISOString()
+                };
+                
+                console.log(`Created metadata for model: ${modelName}`);
             }
             else {
-                console.log(`Rendered: ${outputPath} (${footprint.x}x${footprint.y} tiles)`);
+                console.log(`No successful renders for model: ${modelName}, metadata will be null`);
             }
             
-            return { 
-                footprint, 
-                worldSize, 
-                renderDimensions
+            return {
+                renderResults: results,
+                metadata: modelMetadata
             };
-            
         }
         catch (error) {
-            console.error(`Error rendering ${inputPath}:`, error);
+            console.error(`Error rendering all angles for ${inputPath}:`, error);
             throw error;
         }
-    }
-    
-    async renderAllAngles(inputPath, outputDir) {
-        const angles = [0, 90, 180, 270];
-        const angleNames = ['ne', 'nw', 'sw', 'se'];
-        
-        // Extract model name from input path
-        const modelName = path.basename(inputPath, '.glb');
-        
-        const results = [];
-        
-        // Render all angles and collect metadata
-        for (let i = 0; i < angles.length; i++) {
-            const angle = angles[i];
-            const angleName = angleNames[i];
-            const outputPath = path.join(outputDir, `${modelName}_${angleName}.png`);
-            
-            try {
-                const renderResult = await this.renderModel(inputPath, outputPath, angle);
-                
-                results.push({
-                    angle,
-                    angleName,
-                    outputPath,
-                    success: true,
-                    footprint: renderResult.footprint,
-                    worldSize: renderResult.worldSize,
-                    renderDimensions: renderResult.renderDimensions
-                });
-            }
-            catch (error) {
-                console.error(`Failed to render angle ${angle}° for ${modelName}:`, error);
-                results.push({
-                    angle,
-                    angleName,
-                    outputPath,
-                    success: false,
-                    error: error.message
-                });
-            }
-        }
-        
-        // Prepare metadata (in memory only - no disk writes)
-        const successfulResults = results.filter(r => r.success);
-        let modelMetadata = null;
-        
-        console.log(`Metadata preparation: ${successfulResults.length} successful renders out of ${results.length} total`);
-        
-        if (successfulResults.length > 0) {
-            // Use the first successful render for base metadata (typically 0° angle)
-            const baseResult = successfulResults.find(r => r.angle === 0) || successfulResults[0];
-            
-            modelMetadata = {
-                modelName,
-                baseFootprint: baseResult.footprint, // Base footprint from reference angle
-                worldSize: baseResult.worldSize,
-                renderDimensions: baseResult.renderDimensions,
-                angles: successfulResults.map(r => ({
-                    angle: r.angle,
-                    angleName: r.angleName,
-                    file: path.basename(r.outputPath),
-                    footprint: r.footprint, // Angle-adjusted footprint
-                    renderDimensions: r.renderDimensions
-                })),
-                renderDate: new Date().toISOString()
-            };
-            
-            console.log(`Created metadata for model: ${modelName}`);
-        }
-        else {
-            console.log(`No successful renders for model: ${modelName}, metadata will be null`);
-        }
-        
-        return {
-            renderResults: results,
-            metadata: modelMetadata
-        };
     }
     
     /**
