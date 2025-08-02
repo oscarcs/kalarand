@@ -1,28 +1,112 @@
-import puppeteer from 'puppeteer';
+import puppeteer, { Browser, Page } from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import { createServer } from 'http';
+import { createServer, Server } from 'http';
 import { parse } from 'url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+interface Renderer3DOptions {
+    width?: number;
+    height?: number;
+}
+
+interface Footprint {
+    x: number;
+    y: number;
+}
+
+interface WorldSize {
+    width: number;
+    height: number;
+    depth: number;
+}
+
+interface RenderDimensions {
+    width: number;
+    height: number;
+}
+
+interface RenderResult {
+    angle: number;
+    angleName: string;
+    success: boolean;
+    imageData?: string;
+    footprint?: Footprint;
+    worldSize?: WorldSize;
+    renderDimensions?: RenderDimensions;
+    error?: string;
+}
+
+interface ProcessedRenderResult {
+    angle: number;
+    angleName: string;
+    outputPath: string;
+    success: boolean;
+    footprint?: Footprint;
+    worldSize?: WorldSize;
+    renderDimensions?: RenderDimensions;
+    error?: string;
+}
+
+interface AngleMetadata {
+    angle: number;
+    angleName: string;
+    file: string;
+    footprint: Footprint;
+    renderDimensions?: RenderDimensions;
+}
+
+interface ModelMetadata {
+    modelName: string;
+    baseFootprint: Footprint;
+    worldSize: WorldSize;
+    renderDimensions?: RenderDimensions;
+    angles: AngleMetadata[];
+    renderDate: string;
+}
+
+interface MultipleModelsResult {
+    renderResults: ProcessedRenderResult[];
+    metadata: ModelMetadata | null;
+}
+
+interface AllModelsResult {
+    allResults: ProcessedRenderResult[];
+    metadata: Record<string, ModelMetadata>;
+}
+
+// Global window interface extension for the browser context
+declare global {
+    interface Window {
+        THREE: any;
+        renderReady: boolean;
+        threeRenderer: {
+            renderModelAllAngles: (arrayBuffer: ArrayBuffer, textureData: string | null) => Promise<RenderResult[]>;
+        };
+    }
+}
 
 /**
  * 3D to 2D renderer using Puppeteer + Three.js
  * Renders GLB models with isometric/dimetric projection to PNG files
  */
 export class Renderer3D {
-    constructor(options = {}) {
+    private width: number;
+    private height: number;
+    private browser: Browser | null = null;
+    private page: Page | null = null;
+    private server: Server | null = null;
+    private serverPort: number = 0;
+
+    constructor(options: Renderer3DOptions = {}) {
         this.width = options.width || 1024;
         this.height = options.height || 1024;
-        this.browser = null;
-        this.page = null;
-        this.server = null;
-        this.serverPort = 0;
     }
     
-    async startLocalServer() {
+    private async startLocalServer(): Promise<void> {
         const projectRoot = path.dirname(__dirname);
         const nodeModulesPath = path.join(projectRoot, 'node_modules');
         const scriptsPath = path.join(projectRoot, 'scripts');
@@ -40,8 +124,8 @@ export class Renderer3D {
                     return;
                 }
                 
-                const parsedUrl = parse(req.url, true);
-                let filePath;
+                const parsedUrl = parse(req.url!, true);
+                let filePath: string;
                 
                 // Serve our client script file
                 if (parsedUrl.pathname === '/three-renderer-client.js') {
@@ -49,7 +133,7 @@ export class Renderer3D {
                 }
                 else {
                     // Serve Three.js files from node_modules
-                    filePath = path.join(nodeModulesPath, parsedUrl.pathname);
+                    filePath = path.join(nodeModulesPath, parsedUrl.pathname!);
                     
                     // Security check - ensure we're only serving from node_modules
                     if (!filePath.startsWith(nodeModulesPath)) {
@@ -75,17 +159,17 @@ export class Renderer3D {
                 });
             });
             
-            this.server.listen(0, 'localhost', () => {
-                this.serverPort = this.server.address().port;
+            this.server!.listen(0, 'localhost', () => {
+                this.serverPort = (this.server!.address() as any).port;
                 console.log(`Local server started on port ${this.serverPort}`);
                 resolve();
             });
             
-            this.server.on('error', reject);
+            this.server!.on('error', reject);
         });
     }
     
-    async init() {
+    async init(): Promise<void> {
         // Start local server for Three.js files
         await this.startLocalServer();
         
@@ -138,7 +222,7 @@ export class Renderer3D {
         console.log('Renderer initialized successfully');
     }
     
-    createRendererHTML() {
+    private createRendererHTML(): string {
         return `
 <!DOCTYPE html>
 <html>
@@ -166,7 +250,7 @@ export class Renderer3D {
 </html>`;
     }
     
-    async renderAllAngles(inputPath, outputDir) {        
+    async renderAllAngles(inputPath: string, outputDir: string): Promise<MultipleModelsResult> {        
         // Extract model name from input path
         const modelName = path.basename(inputPath, '.glb');
         
@@ -180,7 +264,7 @@ export class Renderer3D {
             // Check for textures in the same directory
             const modelDir = path.dirname(inputPath);
             const texturesDir = path.join(modelDir, 'Textures');
-            let textureData = null;
+            let textureData: string | null = null;
             
             try {
                 const colorMapPath = path.join(texturesDir, 'colormap.png');
@@ -194,7 +278,7 @@ export class Renderer3D {
             }
             
             // Send the model data and texture to the browser and render all angles at once
-            const renderResults = await this.page.evaluate(async (base64Data, textureData) => {
+            const renderResults = await this.page!.evaluate(async (base64Data: string, textureData: string | null) => {
                 // Convert base64 back to ArrayBuffer in the browser
                 const binaryString = atob(base64Data);
                 const arrayBuffer = new ArrayBuffer(binaryString.length);
@@ -207,7 +291,7 @@ export class Renderer3D {
             }, base64Data, textureData);
             
             // Process the results and save the images
-            const results = [];
+            const results: ProcessedRenderResult[] = [];
             
             for (let i = 0; i < renderResults.length; i++) {
                 const renderResult = renderResults[i];
@@ -216,7 +300,7 @@ export class Renderer3D {
                 
                 if (renderResult.success) {
                     try {
-                        const base64Result = renderResult.imageData.replace(/^data:image\/png;base64,/, '');
+                        const base64Result = renderResult.imageData!.replace(/^data:image\/png;base64,/, '');
                         const buffer = Buffer.from(base64Result, 'base64');
                         
                         await fs.promises.mkdir(outputDir, { recursive: true });
@@ -224,10 +308,10 @@ export class Renderer3D {
                         await fs.promises.writeFile(outputPath, buffer);
                         
                         if (renderResult.renderDimensions) {
-                            console.log(`Rendered: ${outputPath} (${renderResult.footprint.x}x${renderResult.footprint.y} tiles, ${renderResult.renderDimensions.width}x${renderResult.renderDimensions.height}px)`);
+                            console.log(`Rendered: ${outputPath} (${renderResult.footprint!.x}x${renderResult.footprint!.y} tiles, ${renderResult.renderDimensions.width}x${renderResult.renderDimensions.height}px)`);
                         }
                         else {
-                            console.log(`Rendered: ${outputPath} (${renderResult.footprint.x}x${renderResult.footprint.y} tiles)`);
+                            console.log(`Rendered: ${outputPath} (${renderResult.footprint!.x}x${renderResult.footprint!.y} tiles)`);
                         }
                         
                         results.push({
@@ -235,8 +319,8 @@ export class Renderer3D {
                             angleName: renderResult.angleName,
                             outputPath,
                             success: true,
-                            footprint: renderResult.footprint,
-                            worldSize: renderResult.worldSize,
+                            footprint: renderResult.footprint!,
+                            worldSize: renderResult.worldSize!,
                             renderDimensions: renderResult.renderDimensions
                         });
                     }
@@ -247,7 +331,7 @@ export class Renderer3D {
                             angleName: renderResult.angleName,
                             outputPath,
                             success: false,
-                            error: error.message
+                            error: error instanceof Error ? error.message : String(error)
                         });
                     }
                 }
@@ -265,7 +349,7 @@ export class Renderer3D {
             
             // Prepare metadata (in memory only - no disk writes)
             const successfulResults = results.filter(r => r.success);
-            let modelMetadata = null;
+            let modelMetadata: ModelMetadata | null = null;
             
             console.log(`Metadata preparation: ${successfulResults.length} successful renders out of ${results.length} total`);
             
@@ -275,14 +359,14 @@ export class Renderer3D {
                 
                 modelMetadata = {
                     modelName,
-                    baseFootprint: baseResult.footprint, // Base footprint from reference angle
-                    worldSize: baseResult.worldSize,
+                    baseFootprint: baseResult.footprint!, // Base footprint from reference angle
+                    worldSize: baseResult.worldSize!,
                     renderDimensions: baseResult.renderDimensions,
                     angles: successfulResults.map(r => ({
                         angle: r.angle,
                         angleName: r.angleName,
                         file: path.basename(r.outputPath),
-                        footprint: r.footprint, // Angle-adjusted footprint
+                        footprint: r.footprint!, // Angle-adjusted footprint
                         renderDimensions: r.renderDimensions
                     })),
                     renderDate: new Date().toISOString()
@@ -308,9 +392,9 @@ export class Renderer3D {
     /**
      * Render multiple models and write consolidated metadata at the end
      */
-    async renderMultipleModels(modelPaths, outputDir) {
-        const allMetadata = {};
-        const allResults = [];
+    async renderMultipleModels(modelPaths: string[], outputDir: string): Promise<AllModelsResult> {
+        const allMetadata: Record<string, ModelMetadata> = {};
+        const allResults: ProcessedRenderResult[] = [];
         
         for (const modelPath of modelPaths) {
             try {
@@ -348,7 +432,7 @@ export class Renderer3D {
         };
     }
     
-    async dispose() {
+    async dispose(): Promise<void> {
         if (this.browser) {
             await this.browser.close();
         }
