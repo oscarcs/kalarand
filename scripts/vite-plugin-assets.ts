@@ -53,7 +53,7 @@ export function assetsPlugin() {
             await fs.mkdir(assets2dDir, { recursive: true });
 
             // Generate 2D assets from 3D models
-            await generate2DAssets(assets3dDir, assets2dDir);
+            await generate2DAssets(assets3dDir, assets2dDir, root);
 
             // Process all assets (existing 2D + newly generated 2D)
             const assetFiles = await getAllAssetFiles(assetsDir);
@@ -132,7 +132,7 @@ export function assetsPlugin() {
         return files;
     }
 
-    async function generate2DAssets(assets3dDir: string, assets2dDir: string) {
+    async function generate2DAssets(assets3dDir: string, assets2dDir: string, root: string) {
         try {
             // Find all GLB files in 3d directory
             const glbFiles = await findGlbFiles(assets3dDir);
@@ -147,7 +147,7 @@ export function assetsPlugin() {
             // Check which models need regeneration
             const modelsToGenerate: string[] = [];
             for (const glbFile of glbFiles) {
-                const needsGeneration = await needs2DGeneration(glbFile, assets2dDir);
+                const needsGeneration = await needs2DGeneration(glbFile, assets2dDir, root);
                 if (needsGeneration) {
                     modelsToGenerate.push(glbFile);
                 }
@@ -258,7 +258,7 @@ export function assetsPlugin() {
         return glbFiles;
     }
 
-    async function needs2DGeneration(glbPath: string, assets2dDir: string): Promise<boolean> {
+    async function needs2DGeneration(glbPath: string, assets2dDir: string, root: string): Promise<boolean> {
         try {
             const modelName = path.basename(glbPath, '.glb');
             const angleNames = ['ne', 'nw', 'sw', 'se'];
@@ -267,7 +267,27 @@ export function assetsPlugin() {
             const glbStats = await fs.stat(glbPath);
             const glbTime = glbStats.mtime.getTime();
             
-            // Check if all 2D files exist and are newer than GLB
+            // Get script files modification times
+            const scriptFiles = [
+                path.join(root, 'scripts', '3d-renderer.js'),
+                path.join(root, 'scripts', 'three-renderer-client.js')
+            ];
+            
+            let latestScriptTime = 0;
+            for (const scriptFile of scriptFiles) {
+                try {
+                    const scriptStats = await fs.stat(scriptFile);
+                    latestScriptTime = Math.max(latestScriptTime, scriptStats.mtime.getTime());
+                }
+                catch (error) {
+                    // Script file might not exist, continue
+                }
+            }
+            
+            // Get the latest modification time between GLB and scripts
+            const latestSourceTime = Math.max(glbTime, latestScriptTime);
+            
+            // Check if all 2D files exist and are newer than both GLB and scripts
             for (const angleName of angleNames) {
                 const pngPath = path.join(assets2dDir, `${modelName}_${angleName}.png`);
                 
@@ -275,8 +295,8 @@ export function assetsPlugin() {
                     const pngStats = await fs.stat(pngPath);
                     const pngTime = pngStats.mtime.getTime();
                     
-                    // If PNG is older than GLB, regeneration needed
-                    if (pngTime < glbTime) {
+                    // If PNG is older than GLB or any script, regeneration needed
+                    if (pngTime < latestSourceTime) {
                         return true;
                     }
                 }
@@ -286,11 +306,11 @@ export function assetsPlugin() {
                 }
             }
             
-            // All PNG files exist and are newer than GLB
+            // All PNG files exist and are newer than both GLB and scripts
             return false;
         }
         catch (error) {
-            // Error checking files, safer to regenerate
+            // Error checking files, safer to regenerates
             return true;
         }
     }
