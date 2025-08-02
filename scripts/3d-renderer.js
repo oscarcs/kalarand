@@ -14,8 +14,8 @@ const __dirname = path.dirname(__filename);
  */
 export class Renderer3D {
     constructor(options = {}) {
-        this.width = options.width || 512;
-        this.height = options.height || 512;
+        this.width = options.width || 1024;
+        this.height = options.height || 1024;
         this.browser = null;
         this.page = null;
         this.server = null;
@@ -249,9 +249,8 @@ export class Renderer3D {
         const modelName = path.basename(inputPath, '.glb');
         
         const results = [];
-        let modelFootprint = null;
-        let modelWorldSize = null;
         
+        // Render all angles and collect metadata
         for (let i = 0; i < angles.length; i++) {
             const angle = angles[i];
             const angleName = angleNames[i];
@@ -259,12 +258,6 @@ export class Renderer3D {
             
             try {
                 const renderResult = await this.renderModel(inputPath, outputPath, angle);
-                
-                // Store footprint info from first successful render
-                if (!modelFootprint && renderResult) {
-                    modelFootprint = renderResult.footprint;
-                    modelWorldSize = renderResult.worldSize;
-                }
                 
                 results.push({
                     angle,
@@ -288,21 +281,22 @@ export class Renderer3D {
             }
         }
         
-        // Write consolidated metadata file for the model
-        if (modelFootprint) {
-            const modelMetadataPath = path.join(outputDir, `${modelName}_metadata.json`);
-            const firstSuccessfulResult = results.find(r => r.success);
+        // Prepare metadata (in memory only - no disk writes)
+        const successfulResults = results.filter(r => r.success);
+        let modelMetadata = null;
+        
+        console.log(`Metadata preparation: ${successfulResults.length} successful renders out of ${results.length} total`);
+        
+        if (successfulResults.length > 0) {
+            // Use the first successful render for base metadata (typically 0° angle)
+            const baseResult = successfulResults.find(r => r.angle === 0) || successfulResults[0];
             
-            const modelMetadata = {
+            modelMetadata = {
                 modelName,
-                baseFootprint: modelFootprint, // Base footprint (0° orientation)
-                worldSize: modelWorldSize,
-                renderDimensions: firstSuccessfulResult?.renderDimensions || null,
-                tileSize: {
-                    widthPx: 64,
-                    heightPx: 32
-                },
-                angles: results.filter(r => r.success).map(r => ({
+                baseFootprint: baseResult.footprint, // Base footprint from reference angle
+                worldSize: baseResult.worldSize,
+                renderDimensions: baseResult.renderDimensions,
+                angles: successfulResults.map(r => ({
                     angle: r.angle,
                     angleName: r.angleName,
                     file: path.basename(r.outputPath),
@@ -311,10 +305,60 @@ export class Renderer3D {
                 })),
                 renderDate: new Date().toISOString()
             };
-            await fs.promises.writeFile(modelMetadataPath, JSON.stringify(modelMetadata, null, 2));
+            
+            console.log(`Created metadata for model: ${modelName}`);
+        }
+        else {
+            console.log(`No successful renders for model: ${modelName}, metadata will be null`);
         }
         
-        return results;
+        return {
+            renderResults: results,
+            metadata: modelMetadata
+        };
+    }
+    
+    /**
+     * Render multiple models and write consolidated metadata at the end
+     */
+    async renderMultipleModels(modelPaths, outputDir) {
+        const allMetadata = {};
+        const allResults = [];
+        
+        for (const modelPath of modelPaths) {
+            try {
+                console.log(`\nProcessing model: ${modelPath}`);
+                const { renderResults, metadata } = await this.renderAllAngles(modelPath, outputDir);
+                allResults.push(...renderResults);
+                
+                if (metadata) {
+                    console.log(`Adding metadata for model: ${metadata.modelName}`);
+                    allMetadata[metadata.modelName] = metadata;
+                }
+                else {
+                    console.log(`No metadata returned for model: ${path.basename(modelPath, '.glb')}`);
+                }
+            }
+            catch (error) {
+                console.error(`Failed to render model ${modelPath}:`, error);
+                // Continue with other models
+            }
+        }
+        
+        // Write single consolidated metadata file
+        if (Object.keys(allMetadata).length > 0) {
+            const consolidatedMetadataPath = path.join(outputDir, 'models-metadata.json');
+            await fs.promises.writeFile(consolidatedMetadataPath, JSON.stringify(allMetadata, null, 2));
+            console.log(`Consolidated metadata written: ${consolidatedMetadataPath} (${Object.keys(allMetadata).length} models)`);
+        }
+        else {
+            console.log('No metadata to write (no successful renders across all models)');
+        }
+        
+        return {
+            allResults,
+            metadata: allMetadata
+        };
     }
     
     async dispose() {
@@ -324,62 +368,5 @@ export class Renderer3D {
         if (this.server) {
             this.server.close();
         }
-    }
-}
-
-// Test function - render a single model
-export async function testRender(inputGlb, outputPng, angle = 45) {
-    const renderer = new Renderer3D({
-        width: 512,
-        height: 512
-    });
-    
-    try {
-        await renderer.init();
-        await renderer.renderModel(inputGlb, outputPng, angle);
-        console.log('Test render completed successfully!');
-    }
-    catch (error) {
-        console.error('Test render failed:', error);
-        throw error;
-    }
-    finally {
-        await renderer.dispose();
-    }
-}
-
-// Test function - render all angles of a model
-export async function testRenderAllAngles(inputGlb) {
-    const renderer = new Renderer3D({
-        width: 512,
-        height: 512
-    });
-    
-    try {
-        await renderer.init();
-        
-        // Use assets/2d for organized output
-        const outputDir = '/Users/oscar/Dev/kalarand/assets/2d';
-        const results = await renderer.renderAllAngles(inputGlb, outputDir);
-        
-        console.log('Multi-angle render completed!');
-        console.log('Results:');
-        results.forEach(result => {
-            if (result.success) {
-                console.log(`  ✅ ${result.angleName} (${result.angle}°): ${result.outputPath}`);
-            }
-            else {
-                console.log(`  ❌ ${result.angleName} (${result.angle}°): ${result.error}`);
-            }
-        });
-        
-        return results;
-    }
-    catch (error) {
-        console.error('Multi-angle render failed:', error);
-        throw error;
-    }
-    finally {
-        await renderer.dispose();
     }
 }

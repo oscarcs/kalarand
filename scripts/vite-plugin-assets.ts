@@ -62,6 +62,8 @@ export function assetsPlugin() {
                 /\.(png|jpg|jpeg|gif|svg|webp|json|mp3|wav|ogg|m4a|ttf|otf|woff|woff2)$/i.test(file)
             );
 
+            let numAssets = 0;
+
             // Copy assets to public/assets
             const copyPromises = validAssets.map(async (file) => {
                 const srcPath = path.join(assetsDir, file);
@@ -70,10 +72,12 @@ export function assetsPlugin() {
                 // Ensure destination directory exists
                 await fs.mkdir(path.dirname(destPath), { recursive: true });
                 await fs.copyFile(srcPath, destPath);
-                console.log(`Copied ${file} to public/assets/`);
-            });
 
+                numAssets++;
+            });
+            
             await Promise.all(copyPromises);
+            console.log(`Copied ${numAssets} assets to public/assets/`);
 
             // Generate manifest
             const assets: AssetEntry[] = validAssets.map(file => ({
@@ -169,60 +173,18 @@ export function assetsPlugin() {
             try {
                 await renderer.init();
 
-                // Generate 2D assets for each model
-                for (const glbFile of modelsToGenerate) {
-                    const modelName = path.basename(glbFile, '.glb');
-                    console.log(`Generating 2D assets for ${modelName}...`);
-                    
-                    try {
-                        await renderer.renderAllAngles(glbFile, assets2dDir);
-                    }
-                    catch (error) {
-                        console.error(`Failed to generate 2D assets for ${modelName}:`, error);
-                    }
-                }
+                const { allResults, metadata } = await renderer.renderMultipleModels(modelsToGenerate, assets2dDir);
+                
+                console.log(`Generated 2D assets for ${Object.keys(metadata).length} models`);
             }
             finally {
                 await renderer.dispose();
             }
 
             console.log("2D asset generation completed");
-            
-            // Create consolidated metadata file
-            await createConsolidatedMetadata(assets2dDir);
         }
         catch (error) {
             console.error("Error in 2D asset generation:", error);
-        }
-    }
-
-    async function createConsolidatedMetadata(assets2dDir: string) {
-        try {
-            const consolidatedMetadata: Record<string, any> = {};
-            
-            // Find all individual metadata files
-            const metadataFiles = await fs.readdir(assets2dDir);
-            const modelMetadataFiles = metadataFiles.filter(file => file.endsWith('_metadata.json'));
-            
-            for (const metadataFile of modelMetadataFiles) {
-                const metadataPath = path.join(assets2dDir, metadataFile);
-                const metadataContent = await fs.readFile(metadataPath, 'utf-8');
-                const metadata = JSON.parse(metadataContent);
-                
-                consolidatedMetadata[metadata.modelName] = metadata;
-                
-                // Clean up individual metadata file
-                await fs.unlink(metadataPath);
-            }
-            
-            // Write consolidated metadata
-            const consolidatedPath = path.join(assets2dDir, 'models-metadata.json');
-            await fs.writeFile(consolidatedPath, JSON.stringify(consolidatedMetadata, null, 2));
-            
-            console.log(`Created consolidated metadata for ${Object.keys(consolidatedMetadata).length} models`);
-        }
-        catch (error) {
-            console.error("Error creating consolidated metadata:", error);
         }
     }
 

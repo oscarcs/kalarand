@@ -147,35 +147,49 @@ export class ThreeRenderer {
     }
     
     centerAndScaleModel(model, angle = 0) {
-        // Calculate bounding box
+        // Calculate bounding box BEFORE scaling
         const box = new THREE.Box3().setFromObject(model);
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
         
-        // Calculate tile footprint (1 world unit = 1 tile)
-        // Z is 'depth' in our coordinate system
-        const tilesX = Math.max(1, Math.ceil(size.x));
-        const tilesY = Math.max(1, Math.ceil(size.z));
+        // Store original world size
+        const originalWorldSize = { x: size.x, y: size.z };
+        
+        // Calculate target footprint using smart rounding (round to nearest whole number)
+        const targetX = Math.max(1, Math.round(size.x));
+        const targetY = Math.max(1, Math.round(size.z));
+        const targetFootprint = { x: targetX, y: targetY };
+        
+        // Calculate scale factors needed to fit target footprint
+        const scaleX = targetFootprint.x / size.x;
+        const scaleZ = targetFootprint.y / size.z;
+        
+        // Use uniform scaling - pick the more restrictive factor to ensure model fits
+        const uniformScale = Math.min(scaleX, scaleZ);
+        
+        // Center the model BEFORE scaling
+        model.position.sub(center);
+        
+        // Position the model so its base sits on the ground (Y=0) BEFORE scaling
+        const minY = box.min.y;
+        model.position.y -= minY;
+        
+        // Apply the scaling to the model AFTER positioning
+        model.scale.setScalar(uniformScale);
         
         // Store footprint metadata on the model (base orientation)
-        model.userData.baseFootprint = { x: tilesX, y: tilesY };
-        model.userData.worldSize = { x: size.x, y: size.z };
+        model.userData.baseFootprint = targetFootprint;
+        model.userData.worldSize = originalWorldSize;
+        model.userData.scaleFactor = uniformScale;
         
-        console.log(`Model footprint: ${tilesX}x${tilesY} tiles (world size: ${size.x.toFixed(2)}x${size.z.toFixed(2)})`);
+        console.log(`Model footprint: ${targetFootprint.x}x${targetFootprint.y} tiles (world size: ${originalWorldSize.x.toFixed(2)}x${originalWorldSize.y.toFixed(2)}, scale: ${uniformScale.toFixed(2)}x)`);
         
         // Get current footprint for this angle
         const currentFootprint = this.getFootprintForAngle(angle);
         
-        // Simple centering - put model at origin
-        model.position.sub(center);
-        
-        // Position the model so its base sits on the ground (Y=0)
-        const minY = box.min.y;
-        model.position.y -= minY;
-        
         return { 
             footprint: currentFootprint,
-            worldSize: { x: size.x, y: size.z }
+            worldSize: originalWorldSize
         };
     }
     
@@ -239,7 +253,7 @@ export class ThreeRenderer {
             return tempCanvas.toDataURL('image/png');
         }
         
-        // Calculate cropped dimensions (no padding for pixel-perfect alignment)
+        // Calculate cropped dimensions (minimal padding for edge cases)
         const croppedWidth = maxX - minX + 1;
         const croppedHeight = maxY - minY + 1;
         
