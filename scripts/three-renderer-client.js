@@ -88,13 +88,19 @@ export class ThreeRenderer {
         // The key insight: footprint.x world units should map to exactly renderDims.width pixels
         const worldUnitsPerPixel = footprint.x / renderDims.width;
         
-        const halfWidth = (renderDims.width * worldUnitsPerPixel) / 2;
-        const halfHeight = (renderDims.height * worldUnitsPerPixel) / 2;
+        // Add some padding to prevent edge cropping - show 20% more than the calculated footprint
+        const paddingFactor = 1.2;
+        
+        const halfWidth = (renderDims.width * worldUnitsPerPixel * paddingFactor) / 2;
+        const halfHeight = (renderDims.height * worldUnitsPerPixel * paddingFactor) / 2;
+        
+        console.log(`Camera zoom: footprint=${footprint.x}x${footprint.y}, renderDims=${renderDims.width}x${renderDims.height}, worldUnitsPerPixel=${worldUnitsPerPixel.toFixed(4)}, halfWidth=${halfWidth.toFixed(4)}`);
         
         this.camera.left = -halfWidth;
         this.camera.right = halfWidth;
         this.camera.top = halfHeight;
         this.camera.bottom = -halfHeight;
+
         this.camera.updateProjectionMatrix();
         
         return { halfWidth, halfHeight };
@@ -176,14 +182,20 @@ export class ThreeRenderer {
         
         // Apply the scaling to the model AFTER positioning
         model.scale.setScalar(uniformScale);
-        
+
+        // Calculate the new bounding box after scaling
+        const newBox = new THREE.Box3().setFromObject(model);
+        const newSize = newBox.getSize(new THREE.Vector3());
+
         // Store footprint metadata on the model (base orientation)
         model.userData.baseFootprint = targetFootprint;
         model.userData.worldSize = originalWorldSize;
         model.userData.scaleFactor = uniformScale;
         
         console.log(`Model footprint: ${targetFootprint.x}x${targetFootprint.y} tiles (world size: ${originalWorldSize.x.toFixed(2)}x${originalWorldSize.y.toFixed(2)}, scale: ${uniformScale.toFixed(2)}x)`);
-        
+        console.log(`New bounding box size: ${newSize.x.toFixed(4)}x${newSize.z.toFixed(4)} (target was: ${targetFootprint.x}x${targetFootprint.y})`);
+        console.log(`Model bounds after scaling: min(${newBox.min.x.toFixed(4)}, ${newBox.min.z.toFixed(4)}) max(${newBox.max.x.toFixed(4)}, ${newBox.max.z.toFixed(4)})`);
+
         // Get current footprint for this angle
         const currentFootprint = this.getFootprintForAngle(angle);
         
@@ -239,7 +251,7 @@ export class ThreeRenderer {
         for (let y = 0; y < tempCanvas.height; y++) {
             for (let x = 0; x < tempCanvas.width; x++) {
                 const alpha = data[(y * tempCanvas.width + x) * 4 + 3]; // Alpha channel
-                if (alpha > 0) { // Non-transparent pixel
+                if (alpha > 5) { // Use threshold to catch faint anti-aliased edges
                     minX = Math.min(minX, x);
                     minY = Math.min(minY, y);
                     maxX = Math.max(maxX, x);
@@ -253,7 +265,14 @@ export class ThreeRenderer {
             return tempCanvas.toDataURL('image/png');
         }
         
-        // Calculate cropped dimensions (minimal padding for edge cases)
+        // Add padding to prevent cutting off anti-aliased edges
+        const padding = 2;
+        minX = Math.max(0, minX - padding);
+        minY = Math.max(0, minY - padding);
+        maxX = Math.min(tempCanvas.width - 1, maxX + padding);
+        maxY = Math.min(tempCanvas.height - 1, maxY + padding);
+        
+        // Calculate cropped dimensions
         const croppedWidth = maxX - minX + 1;
         const croppedHeight = maxY - minY + 1;
         

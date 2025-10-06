@@ -142,7 +142,9 @@ export function assetsPlugin() {
     async function generate2DAssets(assets3dDir: string, assets2dDir: string, root: string) {
         try {
             // Find all GLB files in 3d directory
-            const glbFiles = await findGlbFiles(assets3dDir);
+            const glbFiles_all = await findGlbFiles(assets3dDir);
+
+            const glbFiles = glbFiles_all.filter(file => file.includes('building-a'));
             
             if (glbFiles.length === 0) {
                 console.log("No 3D models found to convert");
